@@ -1,0 +1,42 @@
+- name: Restore Btrfs Snapshot from Directory /a to Directory /b
+  hosts: pi
+  become: true
+
+  vars:
+    snapshot_num: 2
+    snapshot_dir: /mnt/sub/data/.snapshots
+    source_dir: nextcloud
+    dest_dir: /mnt/sub/data/nextcloud
+
+  tasks:
+    - name: Stop Docker
+      service: 
+        name: docker
+        state: stopped
+
+    - name: Get list of snapshots
+      find:
+        paths: "{{ snapshot_dir }}/{{ source_dir }}"
+        recurse: no
+        file_type: directory
+      register: subdirectory_list
+
+    - name: Extract snapshot paths
+      set_fact:
+        subdirectories: "{{ subdirectory_list.files | map(attribute='path') | list | reverse  }}"
+
+    - name: Get n-th directory path
+      set_fact:
+        snapshot_to_restore: "{{ subdirectories[snapshot_num - 1] }}"
+      when: snapshot_num <= subdirectories | length
+
+    - name: Restore Snapshot
+      copy:
+        src: "{{ snapshot_to_restore }}"
+        dest: "{{ dest_dir }}"
+        remote_src: true
+
+    - name: Start Docker
+      service:
+        name: docker
+        state: started

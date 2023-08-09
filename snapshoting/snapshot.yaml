@@ -1,0 +1,33 @@
+---
+- name: Create btrfs snapshot 
+  hosts: pi
+  become: true
+
+  vars:
+    main_dir: /mnt/sub/data
+    snapshot_dir: /mnt/sub/data
+    max_snapshots: 4
+    array:
+      - key: /.snapshots/nextcloud
+        value: /nextcloud
+      - key: /.snapshots/trilium
+        value: /trilium
+      - key: /.snapshots/photoprism
+        value: /photoprism
+      - key: /.snapshots/immich
+        value: /immich
+
+  tasks:
+    - name: Stop Docker service
+      systemd:
+        name: docker.service
+        state: stopped
+
+    - name: Loop directories
+      include_tasks: snapshot_fs.yaml
+      loop: "{{ array }}"
+
+    - name: Start Docker service
+      systemd:
+        name: docker.service
+        state: started

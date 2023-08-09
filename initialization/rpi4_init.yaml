@@ -1,0 +1,87 @@
+---
+- name: Configure Raspberry Pi
+  hosts: raspberrypi
+  become: true
+
+  vars:
+    tailscale_auth_key: "YOUR_TAILSCALE_AUTH_KEY"
+    external_drive_mount_path: "/mnt/sub"
+
+  tasks:
+    - name: Update packages
+      apt:
+        update_cache: yes
+        upgrade: yes
+        autoremove: yes
+
+    - name: Install Docker dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/raspbian/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=armhf] https://download.docker.com/linux/raspbian {{ ansible_distribution_release }} stable
+        state: present
+
+    - name: Install Docker and Docker Compose
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Install Tailscale
+      apt:
+        name: "curl"
+        state: present
+
+    - name: Download and install Tailscale
+      shell: "curl -fsSL https://pkgs.tailscale.com/stable/raspbian/buster.gpg | sudo apt-key add - && curl -fsSL https://pkgs.tailscale.com/stable/raspbian/buster.list | sudo tee /etc/apt/sources.list.d/tailscale.list && sudo apt-get update && sudo apt-get install tailscale"
+
+    - name: Authenticate Tailscale
+      command: "tailscale up --authkey {{ tailscale_auth_key }}"
+
+    - name: Automount external drive
+      block:
+        - name: Install BTRFS utilities
+          apt:
+            name: btrfs-progs
+            state: present
+
+        - name: Create mount point directory
+          file:
+            path: "{{ external_drive_mount_path }}"
+            state: directory
+
+        - name: Get UUID of external drive
+          command: "lsblk -no UUID /dev/sda1"
+          register: uuid_output
+
+        - name: Add UUID to fstab
+          mount:
+            path: "{{ external_drive_mount_path }}"
+            src: "UUID={{ uuid_output.stdout }}"
+            fstype: btrfs
+            opts: "defaults,noatime"
+            state: present
+
+#      ADDING SOON
+
+#     - name: Deploy Docker Compose files
+#       docker_compose:
+#       project_name: "{{ item.name }}"
+#        project_directory: "{{ item.path }}"
+#        state: present
+#        pull: yes

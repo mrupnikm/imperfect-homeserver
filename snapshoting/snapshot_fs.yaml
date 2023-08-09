@@ -1,0 +1,14 @@
+---
+- name: Create btrfs snapshot
+  command: btrfs subvolume snapshot {{ main_dir }}{{ item.value }} {{ snapshot_dir }}{{item.key}}/{{ ansible_date_time.iso8601 }}
+  changed_when: true
+
+- name: Delete oldest btrfs snapshot if more than max_snapshots exist
+  shell: >
+    ls -t {{ snapshot_dir }}{{item.key}} |
+    tail -n +{{ max_snapshots + 1 }} |
+    xargs -I '{}' sudo rm -r {{ snapshot_dir }}{{item.key}}/{{ ansible_date_time.iso8601 }}'{}'
+  args:
+    executable: /bin/bash
+  register: delete_snapshot
+  changed_when: delete_snapshot.stdout_lines | length > 0
